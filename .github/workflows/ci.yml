@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-jobs:
+jobs: 
 
   frontend-lint-format-check:
     name: Frontend
