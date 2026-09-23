@@ -42,10 +42,10 @@ jobs:
     if: always()
     steps:
       - name: Pipeline succeeded
-        if: needs.frontend-build.result == 'success'
+        if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
         run: echo "All checks passed successfully!"
       - name: Pipeline failed
-        if: needs.frontend-build.result != 'success'
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: |
-          echo "Some checks failed, were cancelled, or skipped."
+          echo "Some checks failed or were cancelled."
           exit 1
