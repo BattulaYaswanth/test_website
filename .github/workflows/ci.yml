@@ -1,6 +1,6 @@
 name: CI pipeline
 
-on:
+on:  
   push:
     branches: [main]
   pull_request:
@@ -11,26 +11,24 @@ jobs:
 
   frontend-lint-format-check:
     name: Frontend
-    needs: frontend-vulnerability-check
     uses: ./.github/workflows/frontend-lint-format-check.yml
 
   backend-lint-format-check:
     name: Backend
-    needs: [backend-vulnerability-check, backend-sast-check]
     uses: ./.github/workflows/backend-lint-format-check.yml
 
   frontend-unit-tests:
-    name: Frontend
+    name: Frontend Unit Tests
     needs: frontend-lint-format-check
     uses: ./.github/workflows/frontend-unit-tests.yml
 
   backend-unit-tests:
-    name: Backend
+    name: Backend Unit Tests
     needs: backend-lint-format-check
     uses: ./.github/workflows/backend-unit-tests.yml
 
   pipeline-success:
-    name: Pipeline success
+    name: Pipeline status
     needs:
       [
       frontend-lint-format-check,
