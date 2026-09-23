@@ -11,11 +11,11 @@ jobs:
 
   frontend-vulnerability-check:
     name: Frontend Vulnerability
-    uses: ./github/workflows/frontend-vulnerability-check.yml
+    uses: ./.github/workflows/frontend-vulnerability-check.yml
 
   backend-vulnerability-check:
     name: Backend Vulnerability
-    uses: ./github/workflows/backend-vulnerability-check.yml
+    uses: ./.github/workflows/backend-vulnerability-check.yml
 
   frontend-lint-format-check:
     name: Frontend
