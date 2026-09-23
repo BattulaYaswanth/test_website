@@ -31,7 +31,13 @@ jobs:
 
   pipeline-success:
     name: Pipeline success
-    needs: frontend-build
+    needs:
+      [
+      frontend-lint-format-check,
+      backend-lint-format-check,
+      frontend-unit-tests,
+      backend-unit-tests
+      ]
     runs-on: ubuntu-latest
     if: always()
     steps:
