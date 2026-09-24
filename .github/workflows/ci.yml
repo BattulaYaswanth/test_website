@@ -47,7 +47,7 @@ jobs:
     uses: ./.github/workflows/backend-integration-tests.yml
 
   pipeline-success:
-    name: Pipeline status
+    name: Pipeline success
     needs:
       [
       frontend-vulnerability-check,
