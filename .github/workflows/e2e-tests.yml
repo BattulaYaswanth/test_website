@@ -185,7 +185,7 @@ jobs:
       - name: Install Playwright browsers and dependencies
         working-directory: ./frontend
         run: |
-          pnpm exec playwright install --with-deps chromium firefox
+          pnpm exec playwright install --with-deps chromium
 
       # ------------------------------------------------------------
       # E2E tests
