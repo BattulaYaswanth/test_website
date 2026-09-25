@@ -1,14 +1,13 @@
 name: CI pipeline
 
-on:  
+on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
-jobs: 
-
+jobs:
   frontend-vulnerability-check:
     name: Frontend Vulnerability
     uses: ./.github/workflows/frontend-vulnerability-check.yml
@@ -28,7 +27,7 @@ jobs:
 
   backend-lint-format-check:
     name: Backend
-    needs: [backend-vulnerability-check,backend-sast-check]
+    needs: backend-vulnerability-check
     uses: ./.github/workflows/backend-lint-format-check.yml
 
   frontend-unit-tests:
@@ -41,26 +40,49 @@ jobs:
     needs: backend-lint-format-check
     uses: ./.github/workflows/backend-unit-tests.yml
 
+  backend-integration-tests:
+    name: Backend Integration Tests
+    needs: backend-unit-tests
+    uses: ./.github/workflows/backend-integration-tests.yml
+
+  e2e-tests:
+    name: E2E
+    needs: [frontend-unit-tests, backend-integration-tests]
+    uses: ./.github/workflows/e2e-tests.yml
+
   pipeline-success:
-    name: Pipeline status
+    name: Pipeline success
     needs:
-      [
-      frontend-vulnerability-check,
-      backend-vulnerability-check,
-      backend-sast-check,
-      frontend-lint-format-check,
-      backend-lint-format-check,
-      frontend-unit-tests,
-      backend-unit-tests
-      ]
+      - frontend-vulnerability-check
+      - backend-vulnerability-check
+      - backend-sast-check
+      - frontend-lint-format-check
+      - backend-lint-format-check
+      - frontend-unit-tests
+      - backend-unit-tests
+      - backend-integration-tests
+      - e2e-tests
     runs-on: ubuntu-latest
     if: always()
+
     steps:
-      - name: Pipeline succeeded
-        if: "!contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')"
-        run: echo "All checks passed successfully!"
-      - name: Pipeline failed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+      - name: Show job results
         run: |
-          echo "Some checks failed or were cancelled."
-          exit 1
+          echo "frontend-vulnerability-check: ${{ needs.frontend-vulnerability-check.result }}"
+          echo "backend-vulnerability-check: ${{ needs.backend-vulnerability-check.result }}"
+          echo "backend-sast-check: ${{ needs.backend-sast-check.result }}"
+          echo "frontend-lint-format-check: ${{ needs.frontend-lint-format-check.result }}"
+          echo "backend-lint-format-check: ${{ needs.backend-lint-format-check.result }}"
+          echo "frontend-unit-tests: ${{ needs.frontend-unit-tests.result }}"
+          echo "backend-unit-tests: ${{ needs.backend-unit-tests.result }}"
+          echo "backend-integration-tests: ${{ needs.backend-integration-tests.result }}"
+          echo "e2e-tests: ${{ needs.e2e-tests.result }}"
+
+      - name: Fail if any dependency failed
+        if: |
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled')
+        run: exit 1
+
+      - name: Pipeline succeeded
+        run: echo "All checks passed successfully!"

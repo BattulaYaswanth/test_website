@@ -15,21 +15,18 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
-
   projects: [
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
-
     {
       name: "firefox",
       use: { ...devices["Desktop Firefox"] },
     },
   ],
-
   webServer: {
-    command: "pnpm run dev",
+    command: process.env.CI ? "npx vite preview --port 8080" : "pnpm run dev",
     url: "http://localhost:8080",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
