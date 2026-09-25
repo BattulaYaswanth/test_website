@@ -26,6 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        working-directory: ./frontend # Change this to your subfolder path
 
       - name: Get Playwright version
         id: playwright-version
