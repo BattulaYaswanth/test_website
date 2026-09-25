@@ -14,11 +14,20 @@ jobs:
   tests:
     name: Run E2E tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+
+    # 178 tests on Chromium + Firefox can take longer than 30 minutes.
+    timeout-minutes: 45
+
     steps:
+      # ------------------------------------------------------------
+      # Checkout
+      # ------------------------------------------------------------
       - name: Check out repository
         uses: actions/checkout@v6
 
+      # ------------------------------------------------------------
+      # Python
+      # ------------------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -29,68 +38,103 @@ jobs:
         working-directory: ./backend
         run: pip install -r requirements.txt
 
+      # ------------------------------------------------------------
+      # Meilisearch
+      # ------------------------------------------------------------
       - name: Download Meilisearch binary
         working-directory: ./backend
         run: |
           MAX_RETRIES="${MEILISEARCH_DOWNLOAD_MAX_RETRIES}"
           RETRY_DELAY="${MEILISEARCH_DOWNLOAD_RETRY_DELAY}"
-          for i in $(seq 1 $MAX_RETRIES); do
+
+          for i in $(seq 1 "$MAX_RETRIES"); do
             echo "Attempt $i of $MAX_RETRIES to download Meilisearch..."
+
             if curl -L https://install.meilisearch.com | sh; then
               echo "Meilisearch downloaded successfully!"
               chmod +x meilisearch
               break
+            fi
+
+            if [ "$i" -lt "$MAX_RETRIES" ]; then
+              echo "Download failed. Retrying in $RETRY_DELAY seconds..."
+              sleep "$RETRY_DELAY"
             else
-              if [ $i -lt $MAX_RETRIES ]; then
-                echo "Download failed. Retrying in $RETRY_DELAY seconds..."
-                sleep $RETRY_DELAY
-              else
-                echo "Download failed after $MAX_RETRIES attempts"
-                exit 1
-              fi
+              echo "Download failed after $MAX_RETRIES attempts"
+              exit 1
             fi
           done
 
       - name: Start Meilisearch
         working-directory: ./backend
         run: |
-          ./meilisearch --master-key="${MEILISEARCH_MASTER_KEY}" &
+          ./meilisearch \
+            --master-key="${MEILISEARCH_MASTER_KEY}" \
+            > /tmp/meilisearch.log 2>&1 &
+
+          MEILISEARCH_PID=$!
+          echo "MEILISEARCH_PID=$MEILISEARCH_PID" >> "$GITHUB_ENV"
+
           echo "Waiting for Meilisearch to start..."
+
           for i in {1..30}; do
-            if curl -s http://localhost:7700/health | grep -q "available"; then
+            if curl -sf http://localhost:7700/health | grep -q "available"; then
               echo "Meilisearch is ready!"
               break
             fi
+
             echo "Attempt $i: Meilisearch not ready yet..."
             sleep 1
           done
-          if ! curl -s http://localhost:7700/health | grep -q "available"; then
+
+          if ! curl -sf http://localhost:7700/health | grep -q "available"; then
             echo "Meilisearch failed to start after 30 attempts"
+            echo "===== Meilisearch logs ====="
+            cat /tmp/meilisearch.log
             exit 1
           fi
 
+      # ------------------------------------------------------------
+      # Backend
+      # ------------------------------------------------------------
       - name: Start backend server
         working-directory: ./backend
         run: |
-          uvicorn main:app --host 0.0.0.0 --port 8000 &
+          uvicorn main:app \
+            --host 0.0.0.0 \
+            --port 8000 \
+            > /tmp/backend.log 2>&1 &
+
+          BACKEND_PID=$!
+          echo "BACKEND_PID=$BACKEND_PID" >> "$GITHUB_ENV"
+
           echo "Waiting for backend to start..."
+
           for i in {1..30}; do
-            if curl -s http://localhost:8000/api/health | grep -q "ok"; then
+            if curl -sf http://localhost:8000/api/health | grep -q "ok"; then
               echo "Backend is ready!"
               break
             fi
+
             echo "Attempt $i: Backend not ready yet..."
             sleep 1
           done
-          if ! curl -s http://localhost:8000/api/health | grep -q "ok"; then
+
+          if ! curl -sf http://localhost:8000/api/health | grep -q "ok"; then
             echo "Backend failed to start after 30 attempts"
+            echo "===== Backend logs ====="
+            cat /tmp/backend.log
             exit 1
           fi
+
         env:
           MEILISEARCH_URL: ${{ env.MEILISEARCH_URL }}
           MEILISEARCH_MASTER_KEY: ${{ env.MEILISEARCH_MASTER_KEY }}
           MEILISEARCH_INDEX_NAME: ${{ env.MEILISEARCH_INDEX_NAME }}
 
+      # ------------------------------------------------------------
+      # Seed test data
+      # ------------------------------------------------------------
       - name: Seed E2E test data
         working-directory: ./backend
         run: python -m tests.test_data
@@ -99,6 +143,9 @@ jobs:
           MEILISEARCH_MASTER_KEY: ${{ env.MEILISEARCH_MASTER_KEY }}
           MEILISEARCH_INDEX_NAME: ${{ env.MEILISEARCH_INDEX_NAME }}
 
+      # ------------------------------------------------------------
+      # Node / pnpm
+      # ------------------------------------------------------------
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -113,38 +160,45 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ./frontend
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
+      # ------------------------------------------------------------
+      # Playwright
+      # ------------------------------------------------------------
       - name: Get Playwright version
         id: playwright-version
         working-directory: ./frontend
-        run: echo "version=$(pnpm list @playwright/test --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+        shell: bash
+        run: |
+          VERSION=$(pnpm exec playwright --version | awk '{print $2}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Playwright version: $VERSION"
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
-        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      - name: Install Playwright browsers (if no cache)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - name: Install Playwright browsers and dependencies
         working-directory: ./frontend
-        run: pnpm exec playwright install --with-deps chromium firefox
+        run: |
+          pnpm exec playwright install --with-deps chromium firefox
 
-      - name: Install Playwright dependencies (if cache hit)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        working-directory: ./frontend
-        run: pnpm exec playwright install-deps chromium firefox
-
+      # ------------------------------------------------------------
+      # E2E tests
+      # ------------------------------------------------------------
       - name: Run E2E tests
         working-directory: ./frontend
         run: pnpm run test:e2e
         env:
           CI: true
 
+      # ------------------------------------------------------------
+      # Upload Playwright report
+      # ------------------------------------------------------------
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
@@ -152,3 +206,27 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 30
+
+      # ------------------------------------------------------------
+      # Upload test results
+      # ------------------------------------------------------------
+      - name: Upload Playwright test results
+        uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-test-results
+          path: frontend/test-results/
+          retention-days: 30
+
+      # ------------------------------------------------------------
+      # Upload server logs when something fails
+      # ------------------------------------------------------------
+      - name: Upload server logs
+        uses: actions/upload-artifact@v5
+        if: ${{ failure() }}
+        with:
+          name: server-logs
+          path: |
+            /tmp/meilisearch.log
+            /tmp/backend.log
+          retention-days: 7
