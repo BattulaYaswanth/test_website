@@ -28,7 +28,7 @@ jobs:
 
   backend-lint-format-check:
     name: Backend
-    needs: [backend-vulnerability-check,backend-sast-check]
+    needs: backend-vulnerability-check
     uses: ./.github/workflows/backend-lint-format-check.yml
 
   frontend-unit-tests:
@@ -40,7 +40,7 @@ jobs:
     name: Backend Unit Tests
     needs: backend-lint-format-check
     uses: ./.github/workflows/backend-unit-tests.yml
-  
+
   backend-integration-tests:
     name: Backend Integration Tests
     needs: backend-unit-tests
