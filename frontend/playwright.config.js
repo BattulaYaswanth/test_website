@@ -29,7 +29,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "pnpm run dev",
+    command: process.env.CI ? "pnpm run build && pnpm run preview -- --port 8080" : "pnpm run dev",
     url: "http://localhost:8080",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
