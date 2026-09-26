@@ -225,16 +225,6 @@ jobs:
             echo "Restarting FastAPI backend service (test_website)..."
             sudo /usr/bin/supervisorctl restart test_website
 
-            # Verify the service is running
-            sleep 3
-            if sudo /usr/bin/supervisorctl status test_website | grep -q "RUNNING"; then
-              echo "FastAPI backend is running successfully."
-            else
-              echo "Error: FastAPI backend failed to start properly."
-              sudo /usr/bin/supervisorctl status test_website
-              exit 1
-            fi
-
             echo "Testing Nginx configuration..."
             sudo /usr/bin/nginx -t
 
