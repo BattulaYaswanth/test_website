@@ -1,0 +1,26 @@
+#!/bin/bash
+
+NAME="test_website"
+DJANGODIR=/web_app/backend
+SOCKFILE=/web_app/backend/gunicorn.sock
+USER=yaswanth
+GROUP=yaswanth
+NUM_WORKERS=3
+WORKER_CLASS=uvicorn.workers.UvicornWorker
+MODULE_NAME=main:app
+
+echo "Starting $NAME as $(whoami)"
+
+# Activate virtual environment
+cd $DJANGODIR
+source /web_app/backend/venv/bin/activate
+
+# Launch Gunicorn with Uvicorn worker process
+exec gunicorn ${MODULE_NAME} \
+  --name $NAME \
+  --workers $NUM_WORKERS \
+  --worker-class $WORKER_CLASS \
+  --user=$USER --group=$GROUP \
+  --bind=unix:$SOCKFILE \
+  --log-level=debug \
+  --log-file=-
