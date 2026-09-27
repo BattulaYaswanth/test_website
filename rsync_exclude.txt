@@ -15,3 +15,7 @@ frontend/dist/analytics.html
 backend/venv/
 backend/__pycache__/
 backend/visitors.db
+backend/logs/
+backend/gunicorn_start
+backend/gunicorn.sock
+backend/gunicorn.ctl
